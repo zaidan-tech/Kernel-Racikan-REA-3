@@ -48,6 +48,9 @@ jobs:
         # 1. Integrasi FinaSU (Kernel-level Root)
         curl -LSs "https://raw.githubusercontent.com/LyraVoid/FinaSU/main/kernel/setup.sh" | bash -s main
 
+        # Fix kompatibilitas MODULE_IMPORT_NS untuk Linux Kernel 4.19
+        sed -i 's/#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)/#ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(ns)\n#endif\n#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)/' drivers/kernelsu/core/init.c
+
         # 2. Fix include path & header placement untuk tracepoints di techpack
         echo "ccflags-y += -I\$(srctree)/techpack/display/pll -I\$(src)" >> techpack/display/pll/Makefile
         cp techpack/display/pll/pll_trace.h include/trace/ 2>/dev/null || true
