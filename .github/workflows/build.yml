@@ -59,6 +59,8 @@ jobs:
         echo -e "#ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 500\n#endif\n#ifndef SECCOMP_ARCH_COMPAT_NR\n#define SECCOMP_ARCH_COMPAT_NR 500\n#endif" >> include/linux/seccomp.h
 
         # Fix kompatibilitas FinaSU untuk Linux Kernel 4.19 (file_wrapper, seccomp_cache, su_mount_ns)
+        sed -i '1i #ifndef REMAP_FILE_DEDUP\n#define REMAP_FILE_DEDUP 1\n#endif' drivers/kernelsu/infra/file_wrapper.c
+        sed -i 's|if (remap_flags & REMAP_FILE_DEDUP)|return 0; if (0)|g' drivers/kernelsu/infra/file_wrapper.c
         sed -i 's|p->ops.iopoll = .*|// p->ops.iopoll|g' drivers/kernelsu/infra/file_wrapper.c
         sed -i 's|p->ops.remap_file_range = .*|// p->ops.remap_file_range|g' drivers/kernelsu/infra/file_wrapper.c
         sed -i 's|return orig->f_op->iopoll.*|return 0;|g' drivers/kernelsu/infra/file_wrapper.c
