@@ -69,7 +69,7 @@ jobs:
         sed -i '1i #ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 500\n#endif\n#ifndef SECCOMP_ARCH_COMPAT_NR\n#define SECCOMP_ARCH_COMPAT_NR 500\n#endif' drivers/kernelsu/infra/seccomp_cache.c
         sed -i '1i #ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 500\n#endif\n#ifndef SECCOMP_ARCH_COMPAT_NR\n#define SECCOMP_ARCH_COMPAT_NR 500\n#endif' drivers/kernelsu/infra/seccomp_cache.h
         sed -i 's|<uapi/linux/mount.h>|<linux/mount.h>|g' drivers/kernelsu/infra/su_mount_ns.c
-        sed -i '1i int __attribute__((weak)) path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags, void *data_page) { return 0; }' drivers/kernelsu/infra/su_mount_ns.c
+        echo 'int __attribute__((weak)) path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags, void *data_page) { return 0; }' >> drivers/kernelsu/infra/su_mount_ns.c
 
         # 2. Fix include path & header placement untuk tracepoints di techpack
         echo "ccflags-y += -I\$(srctree)/techpack/display/pll -I\$(src)" >> techpack/display/pll/Makefile
