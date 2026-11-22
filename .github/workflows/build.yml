@@ -52,10 +52,11 @@ jobs:
         sed -i 's/#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)/#ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(ns)\n#endif\n#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)/' drivers/kernelsu/core/init.c
         sed -i '/#endif.*_LINUX_BUILD_BUG_H/i #ifndef static_assert\n#define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)\n#define __static_assert(expr, msg, ...) _Static_assert(expr, msg)\n#endif\n' include/linux/build_bug.h
         echo "ccflags-y += -Dstatic_assert=_Static_assert" >> drivers/kernelsu/Kbuild
-        mkdir -p include/linux
+        mkdir -p include/linux include/uapi/linux
         echo -e "#ifndef _LINUX_PGTABLE_H\n#define _LINUX_PGTABLE_H\n#include <asm/pgtable.h>\n#endif" > include/linux/pgtable.h
         echo -e "#ifndef _LINUX_MINMAX_H\n#define _LINUX_MINMAX_H\n#include <linux/kernel.h>\n#endif" > include/linux/minmax.h
         echo -e "#ifndef _LINUX_HEX_H\n#define _LINUX_HEX_H\n#include <linux/kernel.h>\n#endif" > include/linux/hex.h
+        echo -e "#ifndef _UAPI_LINUX_MOUNT_H\n#define _UAPI_LINUX_MOUNT_H\n#include <linux/mount.h>\n#endif" > include/uapi/linux/mount.h
         echo -e "#ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 500\n#endif\n#ifndef SECCOMP_ARCH_COMPAT_NR\n#define SECCOMP_ARCH_COMPAT_NR 500\n#endif" >> include/linux/seccomp.h
 
         # Fix kompatibilitas FinaSU untuk Linux Kernel 4.19 (file_wrapper, seccomp_cache, su_mount_ns)
@@ -67,6 +68,7 @@ jobs:
         sed -i 's|return orig->f_op->remap_file_range.*|return 0;|g' drivers/kernelsu/infra/file_wrapper.c
         sed -i '1i #ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 500\n#endif\n#ifndef SECCOMP_ARCH_COMPAT_NR\n#define SECCOMP_ARCH_COMPAT_NR 500\n#endif' drivers/kernelsu/infra/seccomp_cache.c
         sed -i '1i #ifndef SECCOMP_ARCH_NATIVE_NR\n#define SECCOMP_ARCH_NATIVE_NR 500\n#endif\n#ifndef SECCOMP_ARCH_COMPAT_NR\n#define SECCOMP_ARCH_COMPAT_NR 500\n#endif' drivers/kernelsu/infra/seccomp_cache.h
+        sed -i 's|<uapi/linux/mount.h>|<linux/mount.h>|g' drivers/kernelsu/infra/su_mount_ns.c
         sed -i '1i int __attribute__((weak)) path_mount(const char *dev_name, struct path *path, const char *type_page, unsigned long flags, void *data_page) { return 0; }' drivers/kernelsu/infra/su_mount_ns.c
 
         # 2. Fix include path & header placement untuk tracepoints di techpack
