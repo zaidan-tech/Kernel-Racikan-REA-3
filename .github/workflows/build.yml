@@ -57,6 +57,20 @@ jobs:
         echo -e "#ifndef _LINUX_MINMAX_H\n#define _LINUX_MINMAX_H\n#include <linux/kernel.h>\n#endif" > include/linux/minmax.h
         echo -e "#ifndef _LINUX_HEX_H\n#define _LINUX_HEX_H\n#include <linux/kernel.h>\n#endif" > include/linux/hex.h
 
+        # Fix kompatibilitas file_wrapper untuk Linux Kernel 4.19 (iopoll & remap_file_range)
+        python3 -c '
+with open("drivers/kernelsu/infra/file_wrapper.c", "r") as f:
+    c = f.read()
+c = c.replace("p->ops.iopoll = fp->f_op->iopoll ? ksu_wrapper_iopoll : NULL;", "#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)\n    p->ops.iopoll = fp->f_op->iopoll ? ksu_wrapper_iopoll : NULL;\n#endif")
+c = c.replace("p->ops.remap_file_range = fp->f_op->remap_file_range ? ksu_wrapper_remap_file_range : NULL;", "#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)\n    p->ops.remap_file_range = fp->f_op->remap_file_range ? ksu_wrapper_remap_file_range : NULL;\n#endif")
+c = c.replace("#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)\nstatic int ksu_wrapper_iopoll", "#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 3, 0)\n#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 1, 0)\nstatic int ksu_wrapper_iopoll")
+c = c.replace("return orig->f_op->iopoll(kiocb, spin);\n}\n#endif\n\n#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)", "return orig->f_op->iopoll(kiocb, spin);\n}\n#endif\n#endif\n\n#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 6, 0)")
+c = c.replace("static loff_t ksu_wrapper_remap_file_range", "#if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 20, 0)\nstatic loff_t ksu_wrapper_remap_file_range")
+c = c.replace("return orig->f_op->remap_file_range(orig, pos_in, file_out, pos_out, len, remap_flags);\n    }\n}\n\nstatic int ksu_wrapper_fadvise", "return orig->f_op->remap_file_range(orig, pos_in, file_out, pos_out, len, remap_flags);\n    }\n}\n#endif\n\nstatic int ksu_wrapper_fadvise")
+with open("drivers/kernelsu/infra/file_wrapper.c", "w") as f:
+    f.write(c)
+'
+
         # 2. Fix include path & header placement untuk tracepoints di techpack
         echo "ccflags-y += -I\$(srctree)/techpack/display/pll -I\$(src)" >> techpack/display/pll/Makefile
         cp techpack/display/pll/pll_trace.h include/trace/ 2>/dev/null || true
