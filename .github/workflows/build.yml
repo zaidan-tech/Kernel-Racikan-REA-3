@@ -1,0 +1,115 @@
+name: Build Custom Kernel Spes
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: Build Kernel Spes SM6225
+    runs-on: ubuntu-22.04
+
+    steps:
+    - name: Checkout Repository
+      uses: actions/checkout@v4
+
+    - name: Install Build Dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y bc bison flex libssl-dev libelf-dev liblz4-tool lzop gcc-aarch64-linux-gnu gcc-arm-linux-gnueabi
+
+    - name: Clone Toolchain Clang (Proton Clang)
+      run: |
+        git clone --depth=1 https://github.com/kdrag0n/proton-clang clang
+
+    - name: Clone Kernel Source Spes & AnyKernel3
+      run: |
+        git clone --depth=1 https://github.com/Evolution-X-Devices/kernel_xiaomi_spes -b main kernel
+        git clone --depth=1 https://github.com/osm0sis/AnyKernel3 anykernel
+
+    - name: Apply Optimizations & Build Kernel
+      run: |
+        cd kernel
+        export PATH="$(pwd)/../clang/bin:$PATH"
+
+        MAKE_ARGS="ARCH=arm64 \
+          SUBARCH=arm64 \
+          CC=clang \
+          CLANG_TRIPLE=aarch64-linux-gnu- \
+          CROSS_COMPILE=aarch64-linux-gnu- \
+          CROSS_COMPILE_ARM32=arm-linux-gnueabi- \
+          LD=ld.lld \
+          AR=llvm-ar \
+          NM=llvm-nm \
+          OBJCOPY=llvm-objcopy \
+          OBJDUMP=llvm-objdump \
+          STRIP=llvm-strip \
+          KCFLAGS=-w"
+
+        # 1. Integrasi FinaSU (Kernel-level Root)
+        curl -LSs "https://raw.githubusercontent.com/LyraVoid/FinaSU/main/kernel/setup.sh" | bash -s main
+
+        # 2. Fix include path & header placement untuk tracepoints di techpack
+        echo "ccflags-y += -I\$(srctree)/techpack/display/pll -I\$(src)" >> techpack/display/pll/Makefile
+        cp techpack/display/pll/pll_trace.h include/trace/ 2>/dev/null || true
+        cp techpack/display/pll/pll_trace.h ./ 2>/dev/null || true
+        cp techpack/display/msm/sde/sde_trace.h include/trace/ 2>/dev/null || true
+        cp techpack/display/msm/sde/sde_trace.h ./ 2>/dev/null || true
+        cp techpack/display/rotator/sde_rotator_trace.h include/trace/ 2>/dev/null || true
+        cp techpack/display/rotator/sde_rotator_trace.h ./ 2>/dev/null || true
+
+        # 3. Load defconfig resmi spes
+        make $MAKE_ARGS vendor/spes-perf_defconfig
+
+        # 4. Inject optimasi racikan performa REA & FinaSU Root
+        # Aktifkan FinaSU Root Driver
+        scripts/config --enable KPROBES
+        scripts/config --enable KPROBE_EVENTS
+        scripts/config --enable KSU
+        scripts/config --enable KSU_HOOK_TRACEPOINT
+
+        # Aktifkan Kompresi RAM ZSTD (Prioritas multitasking RAM 4GB)
+        scripts/config --enable CRYPTO_ZSTD
+        scripts/config --enable ZRAM_DEF_COMP_ZSTD
+        scripts/config --set-str ZRAM_DEF_COMP "zstd"
+
+        # Schedutil Governor (Optimal daya & performa, dingin tanpa overheat)
+        scripts/config --enable CPU_FREQ_GOV_SCHEDUTIL
+        scripts/config --enable CPU_FREQ_DEFAULT_GOV_SCHEDUTIL
+        scripts/config --disable CPU_FREQ_DEFAULT_GOV_PERFORMANCE
+
+        # Aktifkan BBR TCP Congestion (Koneksi WiFi & Game lebih responsif)
+        scripts/config --enable TCP_CONG_BBR
+        scripts/config --enable DEFAULT_BBR
+        scripts/config --set-str DEFAULT_TCP_CONG "bbr"
+
+        # Matikan Debug Bloat (Meringankan kernel & hemat RAM)
+        scripts/config --disable DEBUG_INFO
+        scripts/config --disable DEBUG_LIST
+        scripts/config --disable SLUB_DEBUG
+        scripts/config --disable ARM64_ERRATUM_843419
+
+        # Sinkronkan config final
+        make $MAKE_ARGS olddefconfig
+
+        # 4. Kompilasi Image.gz
+        make -j$(nproc --all) $MAKE_ARGS Image.gz
+
+        # 5. Bungkus ke AnyKernel3 flashable zip
+        cp arch/arm64/boot/Image.gz ../anykernel/
+        cd ../anykernel
+
+        # Sesuaikan partisi & metadata AnyKernel3 untuk spes / spesn
+        sed -i 's|BLOCK=.*|BLOCK=boot;|g' anykernel.sh
+        sed -i 's|IS_SLOT_DEVICE=.*|IS_SLOT_DEVICE=auto;|g' anykernel.sh
+        sed -i 's/kernel.string=.*/kernel.string=SuperSpes-FinaSU-Optimized (SM6225)/g' anykernel.sh
+        sed -i 's/device.name1=.*/device.name1=spes/g' anykernel.sh
+        sed -i 's/device.name2=.*/device.name2=spesn/g' anykernel.sh
+        sed -i 's/do.devicecheck=1/do.devicecheck=0/g' anykernel.sh
+
+        zip -r9 ../SuperSpes-Kernel-Optimized.zip * -x .git README.md
+
+    - name: Upload Kernel Flashable ZIP
+      uses: actions/upload-artifact@v4
+      with:
+        name: SuperSpes-Kernel-Flashable-ZIP
+        path: SuperSpes-Kernel-Optimized.zip
