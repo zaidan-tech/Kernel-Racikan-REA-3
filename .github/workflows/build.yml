@@ -48,8 +48,10 @@ jobs:
         # 1. Integrasi FinaSU (Kernel-level Root)
         curl -LSs "https://raw.githubusercontent.com/LyraVoid/FinaSU/main/kernel/setup.sh" | bash -s main
 
-        # Fix kompatibilitas MODULE_IMPORT_NS untuk Linux Kernel 4.19
+        # Fix kompatibilitas static_assert & MODULE_IMPORT_NS untuk Linux Kernel 4.19
         sed -i 's/#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)/#ifndef MODULE_IMPORT_NS\n#define MODULE_IMPORT_NS(ns)\n#endif\n#if LINUX_VERSION_CODE >= KERNEL_VERSION(6, 13, 0)/' drivers/kernelsu/core/init.c
+        sed -i '/#endif.*_LINUX_BUILD_BUG_H/i #ifndef static_assert\n#define static_assert(expr, ...) __static_assert(expr, ##__VA_ARGS__, #expr)\n#define __static_assert(expr, msg, ...) _Static_assert(expr, msg)\n#endif\n' include/linux/build_bug.h
+        echo "ccflags-y += -Dstatic_assert=_Static_assert" >> drivers/kernelsu/Kbuild
 
         # 2. Fix include path & header placement untuk tracepoints di techpack
         echo "ccflags-y += -I\$(srctree)/techpack/display/pll -I\$(src)" >> techpack/display/pll/Makefile
